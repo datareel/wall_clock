@@ -26,8 +26,24 @@ starts with `--fullscreen`. Put it in the Startup folder to start the
 clock when a display computer logs in.
 
 The clock face is the web page `html\index.html` in the program folder.
-Pass a different file or `https://` URL on the command line to show
-another page instead.
+
+## Showing another page
+
+To show a different page, set `url=` in `wall_clock.ini` in the program
+folder (for example `C:\Program Files\Wall Clock\wall_clock.ini`) and
+restart Wall Clock:
+
+    [clock]
+    url=https://example.com/clock/
+    fullscreen=1
+
+`url` can be a web address, a file path, or a path relative to the
+program folder. Leave it empty for the built-in clock. `fullscreen=1`
+starts in full screen mode. The installer lets ordinary users edit this
+file and keeps it on upgrades.
+
+A URL or `--fullscreen` on the command line overrides the INI file, so a
+shortcut can still open a different page.
 
 A group policy that forces the screen to lock after a set time
 (`InactivityTimeoutSecs`) can still lock the session; the program only
@@ -61,7 +77,7 @@ release build of wxWidgets 3.2 with the Edge web view turned on.
         nmake WXDIR=E:\3plibs\wxWidgets64-3.2.4-edge
 
 `wall_clock.exe` has no DLL dependencies besides Windows itself. To make
-`output\wall_clock_setup_2.0.exe`, install Inno Setup 6 and run
+`output\wall_clock_setup_2.1.exe`, install Inno Setup 6 and run
 `nmake installer`.
 
 ## Icon

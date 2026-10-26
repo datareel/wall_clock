@@ -4,7 +4,7 @@
 ;   "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" wall_clock_installer.iss
 ; or: nmake installer
 
-#define AppVersion "2.0"
+#define AppVersion "2.1"
 
 [Setup]
 AppId={{3B6C1F0E-8D52-4C2A-9E1B-6F4A7D20C915}
@@ -36,6 +36,9 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "wall_clock.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "html\*"; DestDir: "{app}\html"; Flags: ignoreversion recursesubdirs
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
+; Keep an edited INI file on upgrade and uninstall. Users may edit it
+; without administrator rights.
+Source: "wall_clock.ini"; DestDir: "{app}"; Flags: onlyifdoesntexist uninsneveruninstall; Permissions: users-modify
 Source: "LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]

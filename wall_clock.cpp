@@ -29,6 +29,10 @@
 //
 // Usage: wall_clock.exe [--fullscreen] [URL]
 //
+// Settings: wall_clock.ini next to the program can set the page to show
+// (url=) and full screen start (fullscreen=). The command line wins over
+// the INI file.
+//
 // F11 or a double click toggles full screen, Esc leaves full screen,
 // F5 reloads the page.
 //
@@ -41,6 +45,7 @@
 #endif
 
 #include "wx/cmdline.h"
+#include "wx/fileconf.h"
 #include "wx/filename.h"
 #include "wx/stdpaths.h"
 #include "wx/webview.h"
@@ -53,7 +58,7 @@
 #error "Wall Clock is a Windows program"
 #endif
 
-#define WALL_CLOCK_VERSION "2.0"
+#define WALL_CLOCK_VERSION "2.1"
 
 // Name the page uses to send messages to the program
 static const char *SCRIPT_HANDLER = "wallclock";
@@ -82,19 +87,58 @@ public:
   virtual bool OnCmdLineParsed(wxCmdLineParser &parser) override;
 
 private:
+  void ReadSettings();
+
   wxString m_url;
   bool m_fullscreen = false;
 };
 
 wxIMPLEMENT_APP(WallClockApp);
 
+// The program's folder, which holds html\index.html and wall_clock.ini
+static wxString ProgramDir()
+{
+  return wxFileName(wxStandardPaths::Get().GetExecutablePath()).GetPath();
+}
+
 // Default page: html\index.html in the program's folder
 static wxString DefaultClockURL()
 {
-  wxFileName page(wxStandardPaths::Get().GetExecutablePath());
+  wxFileName page(ProgramDir(), "index.html");
   page.AppendDir("html");
-  page.SetFullName("index.html");
   return wxFileName::FileNameToURL(page);
+}
+
+// Turn a URL or a file path into a URL. A relative path is relative to
+// the program's folder.
+static wxString ToURL(const wxString &location)
+{
+  if(location.Contains("://") || location.StartsWith("about:"))
+    return location;
+  wxFileName file(location);
+  file.MakeAbsolute(ProgramDir());
+  return wxFileName::FileNameToURL(file);
+}
+
+// Read wall_clock.ini in the program's folder:
+//
+//   [clock]
+//   url=https://example.com/clock/
+//   fullscreen=1
+//
+// Settings given on the command line are kept.
+void WallClockApp::ReadSettings()
+{
+  wxFileName ini(ProgramDir(), "wall_clock.ini");
+  if(!ini.FileExists()) return;
+
+  wxFileConfig config(wxEmptyString, wxEmptyString, ini.GetFullPath(),
+                      wxEmptyString, wxCONFIG_USE_LOCAL_FILE);
+  config.SetPath("/clock");
+
+  wxString url = config.Read("url", wxEmptyString).Strip(wxString::both);
+  if(m_url.empty() && !url.empty()) m_url = url;
+  if(!m_fullscreen) m_fullscreen = config.ReadBool("fullscreen", false);
 }
 
 void WallClockApp::OnInitCmdLine(wxCmdLineParser &parser)
@@ -120,7 +164,8 @@ bool WallClockApp::OnInit()
   SetAppDisplayName("Wall Clock");
 
   if(!wxApp::OnInit()) return false;
-  if(m_url.empty()) m_url = DefaultClockURL();
+  ReadSettings();
+  m_url = m_url.empty() ? DefaultClockURL() : ToURL(m_url);
 
   // Keep the display on and the system awake, which also keeps the
   // screen saver and the idle screen lock from starting. Cleared again
