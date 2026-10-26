@@ -21,7 +21,7 @@ APPSDIR = /usr/share/applications
 DESTDIR =
 
 CXX = g++
-CXXFLAGS = -O2 -Wall -std=c++17 -DNDEBUG \
+CXXFLAGS = -O2 -Wall -std=c++17 -DNDEBUG $(CXXFLAGS_EXTRA) \
 	$(shell $(WX_CONFIG) --cxxflags webview,core,base) \
 	$(shell pkg-config --cflags gio-2.0)
 LIBS = $(shell $(WX_CONFIG) --libs webview,core,base) \
@@ -30,7 +30,7 @@ LIBS = $(shell $(WX_CONFIG) --libs webview,core,base) \
 all: $(PROJECT)
 
 $(PROJECT): $(PROJECT).cpp
-	$(CXX) $(CXXFLAGS) -o $@ $(PROJECT).cpp $(LIBS)
+	$(CXX) $(CXXFLAGS) -o $@ $(PROJECT).cpp $(LIBS) $(LDFLAGS)
 
 # Keeps an edited wall_clock.ini on reinstall
 install: all

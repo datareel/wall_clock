@@ -62,7 +62,7 @@
 #error "Wall Clock is a Windows or Linux (wxGTK) program"
 #endif
 
-#define WALL_CLOCK_VERSION "2.1"
+#define WALL_CLOCK_VERSION "2.2"
 
 // Name the page uses to send messages to the program
 static const char *SCRIPT_HANDLER = "wallclock";

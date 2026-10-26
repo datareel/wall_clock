@@ -68,6 +68,14 @@ Linux:
 * RHEL 9 or 10 (or Rocky/Alma), with the EPEL repository for wxWidgets.
 * A graphical desktop. GNOME, the RHEL default, is tested.
 
+## Installing on Linux
+
+RPMs for RHEL 9 and 10 are on the download page. They need EPEL for
+wxWidgets:
+
+    sudo dnf install epel-release
+    sudo dnf install ./wall_clock-2.2-1.el9.x86_64.rpm     (or .el10)
+
 ## Building on Linux
 
     sudo dnf install epel-release
@@ -80,6 +88,9 @@ This installs the program, the page and `wall_clock.ini` in
 "Wall Clock" desktop menu entry that starts in full screen mode.
 `PREFIX=` changes the program folder. Reinstalling keeps an edited
 `wall_clock.ini`.
+
+To build the RPM instead: `sudo dnf install rpm-build`, then
+`rpmbuild -ta wall_clock-2.2.tar.gz`.
 
 On Linux each user can also set the page in
 `~/.config/wall_clock/wall_clock.ini`, which wins over the one in
@@ -107,7 +118,7 @@ release build of wxWidgets 3.2 with the Edge web view turned on.
         nmake WXDIR=E:\3plibs\wxWidgets64-3.2.4-edge
 
 `wall_clock.exe` has no DLL dependencies besides Windows itself. To make
-`output\wall_clock_setup_2.1.exe`, install Inno Setup 6 and run
+`output\wall_clock_setup_2.2.exe`, install Inno Setup 6 and run
 `nmake installer`.
 
 ## Icon
