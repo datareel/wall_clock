@@ -64,3 +64,6 @@ Testing/
 # Windows build files
 *.res
 output/
+
+# Linux build
+/wall_clock

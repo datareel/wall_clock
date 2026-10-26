@@ -4,6 +4,7 @@
 // ----------------------------------------------------------- //
 // C++ Source Code File Name: wall_clock.cpp
 // C++ Compiler Used: MSVC, wxWidgets 3.2 with the Edge web view
+//                    GCC, wxWidgets 3.2 GTK with the WebKitGTK web view
 // ----------------------------------------------------------- //
 //
 // This program is free software: you can redistribute it and/or modify
@@ -19,19 +20,20 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 //
-// Wall Clock: a full screen clock display for Windows.
+// Wall Clock: a full screen clock display for Windows and Linux.
 //
-// The clock face is a web page (html\index.html next to the program)
+// The clock face is a web page (html/index.html next to the program)
 // shown in a wxWebView window. While the window is open the program
 // keeps the display on and stops the screen saver and the idle screen
 // lock from starting, so the clock stays visible on an unattended
 // display.
 //
-// Usage: wall_clock.exe [--fullscreen] [URL]
+// Usage: wall_clock[.exe] [--fullscreen] [URL]
 //
 // Settings: wall_clock.ini next to the program can set the page to show
-// (url=) and full screen start (fullscreen=). The command line wins over
-// the INI file.
+// (url=) and full screen start (fullscreen=). On Linux a personal
+// ~/.config/wall_clock/wall_clock.ini wins over the one next to the
+// program. The command line wins over the INI files.
 //
 // F11 or a double click toggles full screen, Esc leaves full screen,
 // F5 reloads the page.
@@ -54,8 +56,10 @@
 #error "Wall Clock needs wxWidgets built with wxUSE_WEBVIEW"
 #endif
 
-#if !defined(__WXMSW__)
-#error "Wall Clock is a Windows program"
+#if defined(__WXGTK__)
+#include <gio/gio.h>
+#elif !defined(__WXMSW__)
+#error "Wall Clock is a Windows or Linux (wxGTK) program"
 #endif
 
 #define WALL_CLOCK_VERSION "2.1"
@@ -88,20 +92,28 @@ public:
 
 private:
   void ReadSettings();
+  void KeepScreenAwake();
+  void AllowScreenSleep();
 
   wxString m_url;
   bool m_fullscreen = false;
+  bool m_fullscreen_set = false;
+#if defined(__WXGTK__)
+  GDBusConnection *m_bus = nullptr;
+  const char *m_inhibit_service = nullptr;
+  guint32 m_inhibit_cookie = 0;
+#endif
 };
 
 wxIMPLEMENT_APP(WallClockApp);
 
-// The program's folder, which holds html\index.html and wall_clock.ini
+// The program's folder, which holds html/index.html and wall_clock.ini
 static wxString ProgramDir()
 {
   return wxFileName(wxStandardPaths::Get().GetExecutablePath()).GetPath();
 }
 
-// Default page: html\index.html in the program's folder
+// Default page: html/index.html in the program's folder
 static wxString DefaultClockURL()
 {
   wxFileName page(ProgramDir(), "index.html");
@@ -120,32 +132,47 @@ static wxString ToURL(const wxString &location)
   return wxFileName::FileNameToURL(file);
 }
 
-// Read wall_clock.ini in the program's folder:
+// Read wall_clock.ini:
 //
 //   [clock]
 //   url=https://example.com/clock/
 //   fullscreen=1
 //
-// Settings given on the command line are kept.
+// On Linux ~/.config/wall_clock/wall_clock.ini is read first, then the
+// one in the program's folder. The first setting found is used, and
+// settings given on the command line are kept.
 void WallClockApp::ReadSettings()
 {
-  wxFileName ini(ProgramDir(), "wall_clock.ini");
-  if(!ini.FileExists()) return;
+  wxArrayString files;
+#if defined(__WXGTK__)
+  wxString config_home;
+  if(!wxGetEnv("XDG_CONFIG_HOME", &config_home) || config_home.empty())
+    config_home = wxGetHomeDir() + "/.config";
+  files.Add(config_home + "/wall_clock/wall_clock.ini");
+#endif
+  files.Add(wxFileName(ProgramDir(), "wall_clock.ini").GetFullPath());
 
-  wxFileConfig config(wxEmptyString, wxEmptyString, ini.GetFullPath(),
-                      wxEmptyString, wxCONFIG_USE_LOCAL_FILE);
-  config.SetPath("/clock");
+  for(const wxString &file : files) {
+    if(!wxFileName::FileExists(file)) continue;
 
-  wxString url = config.Read("url", wxEmptyString).Strip(wxString::both);
-  if(m_url.empty() && !url.empty()) m_url = url;
-  if(!m_fullscreen) m_fullscreen = config.ReadBool("fullscreen", false);
+    wxFileConfig config(wxEmptyString, wxEmptyString, file, wxEmptyString,
+                        wxCONFIG_USE_LOCAL_FILE);
+    config.SetPath("/clock");
+
+    wxString url = config.Read("url", wxEmptyString).Strip(wxString::both);
+    if(m_url.empty() && !url.empty()) m_url = url;
+    if(!m_fullscreen_set && config.HasEntry("fullscreen")) {
+      m_fullscreen = config.ReadBool("fullscreen", false);
+      m_fullscreen_set = true;
+    }
+  }
 }
 
 void WallClockApp::OnInitCmdLine(wxCmdLineParser &parser)
 {
   wxApp::OnInitCmdLine(parser);
   parser.AddSwitch("f", "fullscreen", "start in full screen mode");
-  parser.AddParam("URL of the clock page (default: html\\index.html)",
+  parser.AddParam("URL of the clock page (default: html/index.html)",
                   wxCMD_LINE_VAL_STRING, wxCMD_LINE_PARAM_OPTIONAL);
 }
 
@@ -153,6 +180,7 @@ bool WallClockApp::OnCmdLineParsed(wxCmdLineParser &parser)
 {
   if(!wxApp::OnCmdLineParsed(parser)) return false;
   m_fullscreen = parser.Found("f");
+  m_fullscreen_set = m_fullscreen;
   if(parser.GetParamCount() > 0) m_url = parser.GetParam(0);
   return true;
 }
@@ -167,11 +195,7 @@ bool WallClockApp::OnInit()
   ReadSettings();
   m_url = m_url.empty() ? DefaultClockURL() : ToURL(m_url);
 
-  // Keep the display on and the system awake, which also keeps the
-  // screen saver and the idle screen lock from starting. Cleared again
-  // in OnExit(), and by Windows when the program ends.
-  SetThreadExecutionState(ES_CONTINUOUS | ES_DISPLAY_REQUIRED |
-                          ES_SYSTEM_REQUIRED);
+  KeepScreenAwake();
 
   WallClockFrame *frame = new WallClockFrame(m_url, m_fullscreen);
   frame->Show();
@@ -180,19 +204,105 @@ bool WallClockApp::OnInit()
 
 int WallClockApp::OnExit()
 {
-  // Allow normal power saving and screen locking again
-  SetThreadExecutionState(ES_CONTINUOUS);
+  AllowScreenSleep();
   return wxApp::OnExit();
+}
+
+#if defined(__WXGTK__)
+// Idle inhibit services on the session bus, tried in order. GNOME's
+// session manager takes flags (4 = suspend, 8 = idle); the freedesktop
+// screen saver interface is the one KDE, Xfce and others provide.
+struct InhibitService {
+  const char *name, *path, *iface, *inhibit, *uninhibit;
+  bool gnome;
+};
+static const InhibitService INHIBIT_SERVICES[] = {
+  { "org.gnome.SessionManager", "/org/gnome/SessionManager",
+    "org.gnome.SessionManager", "Inhibit", "Uninhibit", true },
+  { "org.freedesktop.ScreenSaver", "/org/freedesktop/ScreenSaver",
+    "org.freedesktop.ScreenSaver", "Inhibit", "UnInhibit", false }
+};
+#endif
+
+// Keep the display on and the system awake, which also keeps the
+// screen saver and the idle screen lock from starting. Undone in
+// AllowScreenSleep(), and by the system when the program ends.
+void WallClockApp::KeepScreenAwake()
+{
+#if defined(__WXMSW__)
+  SetThreadExecutionState(ES_CONTINUOUS | ES_DISPLAY_REQUIRED |
+                          ES_SYSTEM_REQUIRED);
+#elif defined(__WXGTK__)
+  GError *error = nullptr;
+  m_bus = g_bus_get_sync(G_BUS_TYPE_SESSION, nullptr, &error);
+  if(!m_bus) {
+    wxLogWarning("Cannot keep the screen awake: no session bus (%s)",
+                 error->message);
+    g_error_free(error);
+    return;
+  }
+  for(const InhibitService &s : INHIBIT_SERVICES) {
+    GVariant *args = s.gnome ?
+      g_variant_new("(susu)", "wall_clock", 0, "Showing the wall clock",
+                    4u | 8u) :
+      g_variant_new("(ss)", "wall_clock", "Showing the wall clock");
+    GVariant *reply = g_dbus_connection_call_sync(
+      m_bus, s.name, s.path, s.iface, s.inhibit, args,
+      G_VARIANT_TYPE("(u)"), G_DBUS_CALL_FLAGS_NONE, 5000, nullptr, &error);
+    if(reply) {
+      g_variant_get(reply, "(u)", &m_inhibit_cookie);
+      g_variant_unref(reply);
+      m_inhibit_service = s.name;
+      return;
+    }
+    wxLogDebug("%s inhibit failed: %s", s.name, error->message);
+    g_clear_error(&error);
+  }
+  wxLogWarning("Cannot keep the screen awake: the desktop has no idle "
+               "inhibit service");
+#endif
+}
+
+// Allow normal power saving and screen locking again
+void WallClockApp::AllowScreenSleep()
+{
+#if defined(__WXMSW__)
+  SetThreadExecutionState(ES_CONTINUOUS);
+#elif defined(__WXGTK__)
+  if(!m_bus) return;
+  for(const InhibitService &s : INHIBIT_SERVICES) {
+    if(!m_inhibit_service || strcmp(s.name, m_inhibit_service) != 0)
+      continue;
+    GVariant *reply = g_dbus_connection_call_sync(
+      m_bus, s.name, s.path, s.iface, s.uninhibit,
+      g_variant_new("(u)", m_inhibit_cookie), nullptr,
+      G_DBUS_CALL_FLAGS_NONE, 5000, nullptr, nullptr);
+    if(reply) g_variant_unref(reply);
+  }
+  m_inhibit_service = nullptr;
+  g_clear_object(&m_bus);
+#endif
 }
 
 WallClockFrame::WallClockFrame(const wxString &url, bool fullscreen)
   : wxFrame(nullptr, wxID_ANY, "Wall Clock"), m_url(url)
 {
+#if defined(__WXMSW__)
   SetIcon(wxICON(wall_clock));
+#else
+  wxFileName icon(ProgramDir(), "wall_clock.png");
+  icon.AppendDir("icons");
+  if(icon.FileExists()) {
+    if(!wxImage::FindHandler(wxBITMAP_TYPE_PNG))
+      wxImage::AddHandler(new wxPNGHandler);
+    SetIcon(wxIcon(icon.GetFullPath(), wxBITMAP_TYPE_PNG));
+  }
+#endif
   SetBackgroundColour(*wxBLACK);
 
   // Prefer the Edge (WebView2) back end. Fall back to the default one,
-  // Internet Explorer, if the WebView2 runtime is not installed.
+  // Internet Explorer, if the WebView2 runtime is not installed. On
+  // Linux the default is WebKitGTK.
   wxString backend = wxWebViewBackendDefault;
 #if wxUSE_WEBVIEW_EDGE
   if(wxWebView::IsBackendAvailable(wxWebViewBackendEdge))

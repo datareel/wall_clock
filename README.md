@@ -1,6 +1,6 @@
 # Wall Clock
 
-Wall Clock is a full screen clock display for Windows. It shows UTC time
+Wall Clock is a full screen clock display for Windows and Linux. It shows UTC time
 on the top half of the screen and local time on the bottom half, each with
 the day of the week and the date, in large red seven-segment digits.
 
@@ -13,7 +13,8 @@ Closing the program returns the computer to its normal power settings.
 
 ## Using it
 
-    wall_clock.exe [--fullscreen] [URL]
+    wall_clock.exe [--fullscreen] [URL]      (Windows)
+    wall_clock [--fullscreen] [URL]          (Linux)
 
 | Key | Action |
 | --- | --- |
@@ -49,6 +50,12 @@ A group policy that forces the screen to lock after a set time
 (`InactivityTimeoutSecs`) can still lock the session; the program only
 stops the idle timers that it is allowed to.
 
+On Linux the program asks the desktop not to blank or lock the screen
+through D-Bus: the GNOME session manager (RHEL 9 and 10, X11 or Wayland)
+or, on other desktops, the freedesktop screen saver interface (KDE, Xfce
+and others). The request ends when the program closes. A locked-down
+lock policy can still lock the screen.
+
 ## Requirements
 
 * Windows 10 or 11, 64-bit.
@@ -56,7 +63,30 @@ stops the idle timers that it is allowed to.
   current Windows 10. Without it the program falls back to the older
   Internet Explorer web view.
 
-## Building
+Linux:
+
+* RHEL 9 or 10 (or Rocky/Alma), with the EPEL repository for wxWidgets.
+* A graphical desktop. GNOME, the RHEL default, is tested.
+
+## Building on Linux
+
+    sudo dnf install epel-release
+    sudo dnf install gcc-c++ make wxGTK-devel
+    make -f makefile.linux
+    sudo make -f makefile.linux install
+
+This installs the program, the page and `wall_clock.ini` in
+`/opt/wall_clock`, a `wall_clock` link in `/usr/local/bin`, and a
+"Wall Clock" desktop menu entry that starts in full screen mode.
+`PREFIX=` changes the program folder. Reinstalling keeps an edited
+`wall_clock.ini`.
+
+On Linux each user can also set the page in
+`~/.config/wall_clock/wall_clock.ini`, which wins over the one in
+`/opt/wall_clock`. To start the clock at login, copy
+`/usr/share/applications/wall_clock.desktop` to `~/.config/autostart/`.
+
+## Building on Windows
 
 Wall Clock is built with Visual Studio 2022 or 2026 (MSVC) and a static
 release build of wxWidgets 3.2 with the Edge web view turned on.

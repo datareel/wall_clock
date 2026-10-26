@@ -1,0 +1,57 @@
+# Wall Clock makefile for Linux (GCC, wxWidgets 3.2 GTK with WebKitGTK)
+#
+# Build with:   make -f makefile.linux
+# Install with: sudo make -f makefile.linux install
+# Clean with:   make -f makefile.linux clean
+#
+# RHEL 9 and 10 need EPEL for wxWidgets:
+#   sudo dnf install epel-release
+#   sudo dnf install gcc-c++ make wxGTK-devel
+# Point WX_CONFIG at another wx-config if needed:
+#   make -f makefile.linux WX_CONFIG=/path/to/wx-config
+
+WX_CONFIG ?= $(shell command -v wx-config-3.2 || command -v wx-config)
+
+PROJECT = wall_clock
+
+# Program folder (holds the program, html/, icons/ and wall_clock.ini)
+PREFIX = /opt/wall_clock
+BINDIR = /usr/local/bin
+APPSDIR = /usr/share/applications
+DESTDIR =
+
+CXX = g++
+CXXFLAGS = -O2 -Wall -std=c++17 -DNDEBUG \
+	$(shell $(WX_CONFIG) --cxxflags webview,core,base) \
+	$(shell pkg-config --cflags gio-2.0)
+LIBS = $(shell $(WX_CONFIG) --libs webview,core,base) \
+	$(shell pkg-config --libs gio-2.0)
+
+all: $(PROJECT)
+
+$(PROJECT): $(PROJECT).cpp
+	$(CXX) $(CXXFLAGS) -o $@ $(PROJECT).cpp $(LIBS)
+
+# Keeps an edited wall_clock.ini on reinstall
+install: all
+	install -d $(DESTDIR)$(PREFIX)/html $(DESTDIR)$(PREFIX)/icons \
+		$(DESTDIR)$(BINDIR) $(DESTDIR)$(APPSDIR)
+	install -m 755 $(PROJECT) $(DESTDIR)$(PREFIX)/$(PROJECT)
+	install -m 644 html/index.html $(DESTDIR)$(PREFIX)/html/index.html
+	install -m 644 icons/wall_clock.png $(DESTDIR)$(PREFIX)/icons/wall_clock.png
+	install -m 644 LICENSE README.md $(DESTDIR)$(PREFIX)/
+	test -f $(DESTDIR)$(PREFIX)/wall_clock.ini || \
+		install -m 644 wall_clock.ini $(DESTDIR)$(PREFIX)/wall_clock.ini
+	ln -sf $(PREFIX)/$(PROJECT) $(DESTDIR)$(BINDIR)/$(PROJECT)
+	sed 's|@PREFIX@|$(PREFIX)|g' wall_clock.desktop > \
+		$(DESTDIR)$(APPSDIR)/wall_clock.desktop
+	chmod 644 $(DESTDIR)$(APPSDIR)/wall_clock.desktop
+
+uninstall:
+	rm -f $(DESTDIR)$(BINDIR)/$(PROJECT) $(DESTDIR)$(APPSDIR)/wall_clock.desktop
+	rm -rf $(DESTDIR)$(PREFIX)
+
+clean:
+	rm -f $(PROJECT) *.o
+
+.PHONY: all install uninstall clean

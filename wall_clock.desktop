@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Wall Clock
+Comment=Full screen UTC and local time clock that keeps the screen awake
+Exec=@PREFIX@/wall_clock --fullscreen
+Icon=@PREFIX@/icons/wall_clock.png
+Terminal=false
+Categories=Utility;Clock;

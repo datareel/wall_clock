@@ -34,10 +34,12 @@
     border: 1px solid #333;
     min-height: 0;
   }
+  /* 60% of each half of the screen. A vh height, not 60%, because
+     WebKit (Linux) does not resolve a percentage height here. */
   .time {
     display: flex;
     align-items: flex-end;
-    height: 60%;
+    height: 30vh;
     max-width: 96vw;
   }
   .time svg {
