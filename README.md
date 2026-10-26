@@ -1,0 +1,76 @@
+# Wall Clock
+
+Wall Clock is a full screen clock display for Windows. It shows UTC time
+on the top half of the screen and local time on the bottom half, each with
+the day of the week and the date, in large red seven-segment digits.
+
+While the clock window is open the program keeps the display on, so the
+screen saver and the idle screen lock do not start. That makes it suitable
+for a wall display or an operations room monitor that nobody touches.
+Closing the program returns the computer to its normal power settings.
+
+![Wall Clock icon](icons/wall_clock.png)
+
+## Using it
+
+    wall_clock.exe [--fullscreen] [URL]
+
+| Key | Action |
+| --- | --- |
+| F11 or double click | Toggle full screen |
+| Esc | Leave full screen |
+| F5 | Reload the page |
+
+The installer adds a "Wall Clock (full screen)" Start menu shortcut that
+starts with `--fullscreen`. Put it in the Startup folder to start the
+clock when a display computer logs in.
+
+The clock face is the web page `html\index.html` in the program folder.
+Pass a different file or `https://` URL on the command line to show
+another page instead.
+
+A group policy that forces the screen to lock after a set time
+(`InactivityTimeoutSecs`) can still lock the session; the program only
+stops the idle timers that it is allowed to.
+
+## Requirements
+
+* Windows 10 or 11, 64-bit.
+* The Microsoft Edge WebView2 Runtime, which is part of Windows 11 and
+  current Windows 10. Without it the program falls back to the older
+  Internet Explorer web view.
+
+## Building
+
+Wall Clock is built with Visual Studio 2022 or 2026 (MSVC) and a static
+release build of wxWidgets 3.2 with the Edge web view turned on.
+
+1. Unpack wxWidgets 3.2 (for example to `E:\3plibs\wxWidgets64-3.2.4-edge`).
+2. Download the `Microsoft.Web.WebView2` NuGet package
+   (https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2), which is
+   a zip file, and unpack it to `3rdparty\webview2` in the wxWidgets tree.
+3. In `include\wx\msw\setup.h` set `wxUSE_WEBVIEW_EDGE` and
+   `wxUSE_WEBVIEW_EDGE_STATIC` to 1.
+4. From an x64 developer command prompt:
+
+        cd build\msw
+        nmake -f makefile.vc TARGET_CPU=X64 BUILD=release RUNTIME_LIBS=static
+
+5. Build Wall Clock from this folder:
+
+        nmake WXDIR=E:\3plibs\wxWidgets64-3.2.4-edge
+
+`wall_clock.exe` has no DLL dependencies besides Windows itself. To make
+`output\wall_clock_setup_2.0.exe`, install Inno Setup 6 and run
+`nmake installer`.
+
+## Icon
+
+`icons\wall_clock.ico` is drawn by `tools/make_icon.py` from simple shapes,
+so it is original artwork. To redraw it and `icons/wall_clock.png` (needs Python 3 and Pillow):
+
+    python3 tools/make_icon.py
+
+## License
+
+GNU General Public License version 3, see `LICENSE`.
