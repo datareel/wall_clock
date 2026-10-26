@@ -6,6 +6,8 @@
 # with no third-party image. Needs Pillow (python3 -m pip install pillow).
 #
 # Usage: python3 tools/make_icon.py [output.ico [output.png]]
+#
+# License: GNU General Public License version 3 or later, see LICENSE.
 
 import math
 import os
