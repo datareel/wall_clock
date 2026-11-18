@@ -7,6 +7,9 @@
 # in ~/rpmbuild/SOURCES and use the spec from the tarball:
 #   rpmbuild -bb wall_clock.spec
 
+# Keep the build machine's name and home folder out of the package
+%global _buildhost localhost
+
 Name:           wall_clock
 Version:        2.2
 Release:        1%{?dist}
@@ -48,6 +51,9 @@ wall display or an operations room monitor that nobody touches.
 %build
 %set_build_flags
 %if 0%{?rhel} == 8
+# Source paths in assert messages (__FILE__) start at /builddir, not $HOME
+export CFLAGS="$CFLAGS -fmacro-prefix-map=%{_builddir}=/builddir"
+export CXXFLAGS="$CXXFLAGS -fmacro-prefix-map=%{_builddir}=/builddir"
 mkdir -p wxbuild
 cd wxbuild
 ../wxWidgets-%{wxver}/configure --prefix=$PWD/../wxinst \
@@ -57,7 +63,7 @@ cd wxbuild
 %make_build
 make install
 cd ..
-%make_build -f makefile.linux CXXFLAGS_EXTRA="%{optflags}" \
+%make_build -f makefile.linux CXXFLAGS_EXTRA="$CXXFLAGS" \
   WX_CONFIG=$PWD/wxinst/bin/wx-config
 %else
 %make_build -f makefile.linux CXXFLAGS_EXTRA="%{optflags}"
