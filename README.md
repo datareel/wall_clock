@@ -75,12 +75,12 @@ RPMs for RHEL 8, 9 and 10 are on the download page. The RHEL 9 and 10
 RPMs need EPEL for wxWidgets:
 
     sudo dnf install epel-release
-    sudo dnf install ./wall_clock-2.2-1.el9.x86_64.rpm     (or .el10)
+    sudo dnf install ./wall_clock-2.3-1.el9.x86_64.rpm     (or .el10)
 
 The RHEL 8 RPM has wxWidgets 3.2 linked in (EPEL 8 only has 3.0, which
 is too old) and needs only the RHEL repositories:
 
-    sudo dnf install ./wall_clock-2.2-1.el8.x86_64.rpm
+    sudo dnf install ./wall_clock-2.3-1.el8.x86_64.rpm
 
 ## Building on Linux
 
@@ -96,14 +96,14 @@ This installs the program, the page and `wall_clock.ini` in
 `wall_clock.ini`.
 
 To build the RPM instead: `sudo dnf install rpm-build`, then
-`rpmbuild -ta wall_clock-2.2.tar.gz`.
+`rpmbuild -ta wall_clock-2.3.tar.gz`.
 
 On RHEL 8, build the RPM with a private static wxWidgets 3.2.4 (no EPEL):
 
     sudo dnf install rpm-build gcc-c++ make gtk3-devel webkit2gtk3-devel libSM-devel
     mkdir -p ~/rpmbuild/SOURCES
-    cp wall_clock-2.2.tar.gz wxWidgets-3.2.4.tar.bz2 ~/rpmbuild/SOURCES/
-    tar xzf wall_clock-2.2.tar.gz --strip-components=1 wall_clock-2.2/wall_clock.spec
+    cp wall_clock-2.3.tar.gz wxWidgets-3.2.4.tar.bz2 ~/rpmbuild/SOURCES/
+    tar xzf wall_clock-2.3.tar.gz --strip-components=1 wall_clock-2.3/wall_clock.spec
     rpmbuild -bb wall_clock.spec
 
 wxWidgets-3.2.4.tar.bz2 is on the wxWidgets GitHub releases page.
@@ -134,7 +134,7 @@ release build of wxWidgets 3.2 with the Edge web view turned on.
         nmake WXDIR=E:\3plibs\wxWidgets64-3.2.4-edge
 
 `wall_clock.exe` has no DLL dependencies besides Windows itself. To make
-`output\wall_clock_setup_2.2.exe`, install Inno Setup 6 and run
+`output\wall_clock_setup_2.3.exe`, install Inno Setup 6 and run
 `nmake installer`.
 
 ## Icon

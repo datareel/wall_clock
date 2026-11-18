@@ -4,7 +4,7 @@
 ;   "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" wall_clock_installer.iss
 ; or: nmake installer
 
-#define AppVersion "2.2"
+#define AppVersion "2.3"
 
 [Setup]
 AppId={{3B6C1F0E-8D52-4C2A-9E1B-6F4A7D20C915}

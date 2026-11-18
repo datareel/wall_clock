@@ -11,7 +11,7 @@
 %global _buildhost localhost
 
 Name:           wall_clock
-Version:        2.2
+Version:        2.3
 Release:        1%{?dist}
 Summary:        Full screen UTC and local time clock that keeps the screen awake
 License:        GPL-3.0-or-later
@@ -89,7 +89,7 @@ cd ..
 %{_datadir}/applications/wall_clock.desktop
 
 %changelog
-* Wed Nov 18 2026 DataReel <dgaerhome@gmail.com> - 2.2-1
+* Wed Nov 18 2026 DataReel <dgaerhome@gmail.com> - 2.3-1
 - RHEL 8 build with a private static wxWidgets 3.2.4 and WebKitGTK 4.0
 
 * Mon Oct 26 2026 DataReel <dgaerhome@gmail.com> - 2.2-1
