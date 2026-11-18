@@ -1,6 +1,11 @@
-# RPM spec for Wall Clock on RHEL 9 and 10 (wxGTK from EPEL)
+# RPM spec for Wall Clock on RHEL 8, 9 and 10
 #
-# rpmbuild -ta wall_clock-2.2.tar.gz
+# RHEL 9 and 10 build with wxGTK from EPEL:
+#   rpmbuild -ta wall_clock-<version>.tar.gz
+# RHEL 8 (EPEL 8 has only wxWidgets 3.0, too old for the web view) builds a
+# private static wxWidgets 3.2 with WebKitGTK first. Put the wxWidgets source
+# in ~/rpmbuild/SOURCES and use the spec from the tarball:
+#   rpmbuild -bb wall_clock.spec
 
 Name:           wall_clock
 Version:        2.2
@@ -12,7 +17,17 @@ Source0:        https://datareel.com/downloads/wall_clock/%{name}-%{version}.tar
 
 BuildRequires:  gcc-c++
 BuildRequires:  make
+%if 0%{?rhel} == 8
+%global wxver 3.2.4
+Source1:        https://github.com/wxWidgets/wxWidgets/releases/download/v%{wxver}/wxWidgets-%{wxver}.tar.bz2
+BuildRequires:  gtk3-devel
+BuildRequires:  webkit2gtk3-devel
+BuildRequires:  libSM-devel
+# wxWidgets is linked in statically; the program itself is the only user
+Provides:       bundled(wxWidgets) = %{wxver}
+%else
 BuildRequires:  wxGTK-devel
+%endif
 BuildRequires:  pkgconfig(gio-2.0)
 # WebKitGTK needs the MIME database to show the local clock page
 Requires:       shared-mime-info
@@ -24,17 +39,38 @@ is open it asks the desktop not to blank or lock the screen, so it suits a
 wall display or an operations room monitor that nobody touches.
 
 %prep
+%if 0%{?rhel} == 8
+%autosetup -a 1
+%else
 %autosetup
+%endif
 
 %build
 %set_build_flags
+%if 0%{?rhel} == 8
+mkdir -p wxbuild
+cd wxbuild
+../wxWidgets-%{wxver}/configure --prefix=$PWD/../wxinst \
+  --disable-shared --with-gtk=3 --enable-webview --disable-sys-libs \
+  --disable-mediactrl --without-opengl --without-libnotify \
+  --disable-secretstorage --without-liblzma --without-libmspack
+%make_build
+make install
+cd ..
+%make_build -f makefile.linux CXXFLAGS_EXTRA="%{optflags}" \
+  WX_CONFIG=$PWD/wxinst/bin/wx-config
+%else
 %make_build -f makefile.linux CXXFLAGS_EXTRA="%{optflags}"
+%endif
 
 %install
 %make_install -f makefile.linux BINDIR=%{_bindir} APPSDIR=%{_datadir}/applications
 
 %files
 %license LICENSE
+%if 0%{?rhel} == 8
+%license wxWidgets-%{wxver}/docs/licence.txt
+%endif
 %doc README.md
 %dir /opt/wall_clock
 /opt/wall_clock/wall_clock
