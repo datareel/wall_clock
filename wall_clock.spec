@@ -59,8 +59,7 @@ cd wxbuild
 ../wxWidgets-%{wxver}/configure --prefix=$PWD/../wxinst \
   --disable-shared --with-gtk=3 --enable-webview --disable-sys-libs \
   --disable-mediactrl --without-opengl --without-libnotify \
-  --disable-secretstore --without-liblzma --without-libmspack \
-  --disable-webrequest
+  --disable-secretstore --without-liblzma --without-libmspack
 %make_build
 make install
 cd ..
