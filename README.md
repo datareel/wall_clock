@@ -51,7 +51,7 @@ A group policy that forces the screen to lock after a set time
 stops the idle timers that it is allowed to.
 
 On Linux the program asks the desktop not to blank or lock the screen
-through D-Bus: the GNOME session manager (RHEL 9 and 10, X11 or Wayland)
+through D-Bus: the GNOME session manager (RHEL 8, 9 and 10, X11 or Wayland)
 or, on other desktops, the freedesktop screen saver interface (KDE, Xfce
 and others). The request ends when the program closes. A locked-down
 lock policy can still lock the screen.
@@ -65,16 +65,22 @@ lock policy can still lock the screen.
 
 Linux:
 
-* RHEL 9 or 10 (or Rocky/Alma), with the EPEL repository for wxWidgets.
+* RHEL 8, 9 or 10 (or Rocky/Alma). RHEL 9 and 10 need the EPEL repository
+  for wxWidgets; the RHEL 8 RPM has wxWidgets built in.
 * A graphical desktop. GNOME, the RHEL default, is tested.
 
 ## Installing on Linux
 
-RPMs for RHEL 9 and 10 are on the download page. They need EPEL for
-wxWidgets:
+RPMs for RHEL 8, 9 and 10 are on the download page. The RHEL 9 and 10
+RPMs need EPEL for wxWidgets:
 
     sudo dnf install epel-release
     sudo dnf install ./wall_clock-2.2-1.el9.x86_64.rpm     (or .el10)
+
+The RHEL 8 RPM has wxWidgets 3.2 linked in (EPEL 8 only has 3.0, which
+is too old) and needs only the RHEL repositories:
+
+    sudo dnf install ./wall_clock-2.2-1.el8.x86_64.rpm
 
 ## Building on Linux
 
@@ -91,6 +97,16 @@ This installs the program, the page and `wall_clock.ini` in
 
 To build the RPM instead: `sudo dnf install rpm-build`, then
 `rpmbuild -ta wall_clock-2.2.tar.gz`.
+
+On RHEL 8, build the RPM with a private static wxWidgets 3.2.4 (no EPEL):
+
+    sudo dnf install rpm-build gcc-c++ make gtk3-devel webkit2gtk3-devel libSM-devel
+    mkdir -p ~/rpmbuild/SOURCES
+    cp wall_clock-2.2.tar.gz wxWidgets-3.2.4.tar.bz2 ~/rpmbuild/SOURCES/
+    tar xzf wall_clock-2.2.tar.gz --strip-components=1 wall_clock-2.2/wall_clock.spec
+    rpmbuild -bb wall_clock.spec
+
+wxWidgets-3.2.4.tar.bz2 is on the wxWidgets GitHub releases page.
 
 On Linux each user can also set the page in
 `~/.config/wall_clock/wall_clock.ini`, which wins over the one in
