@@ -89,8 +89,8 @@ cd ..
 %{_datadir}/applications/wall_clock.desktop
 
 %changelog
-* Wed Nov 18 2026 DataReel <dgaerhome@gmail.com> - 2.3-1
+* Wed Nov 18 2026 DataReel Software Development - 2.3-1
 - RHEL 8 build with a private static wxWidgets 3.2.4 and WebKitGTK 4.0
 
-* Mon Oct 26 2026 DataReel <dgaerhome@gmail.com> - 2.2-1
+* Mon Oct 26 2026 DataReel Software Development - 2.2-1
 - First Linux release: RHEL 9 and 10 with wxGTK and WebKitGTK
