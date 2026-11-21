@@ -70,6 +70,46 @@
   .info .date {
     text-align: right;
   }
+  #local .zone {
+    cursor: pointer;
+  }
+  /* Time zone picker for the bottom panel (click the zone name or press Z) */
+  #tzpick {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+  }
+  #tzpick.open {
+    display: flex;
+  }
+  #tzpick .box {
+    display: flex;
+    flex-direction: column;
+    gap: 1vh;
+    width: min(90vw, 40em);
+    height: 80vh;
+    font-size: 2.5vh;
+    user-select: text;
+  }
+  #tzpick input, #tzpick select, #tzpick button {
+    font: inherit;
+    color: var(--lit);
+    background: #110000;
+    border: 1px solid var(--lit);
+    padding: 0.4em;
+  }
+  #tzpick select {
+    flex: 1;
+  }
+  #tzpick .buttons {
+    display: flex;
+    gap: 1em;
+    justify-content: flex-end;
+  }
 </style>
 </head>
 <body>
@@ -87,6 +127,16 @@
     </div>
   </section>
 </main>
+<div id="tzpick">
+  <div class="box">
+    <input type="text" id="tzfilter" placeholder="Type to filter time zones">
+    <select id="tzlist" size="12"></select>
+    <div class="buttons">
+      <button type="button" id="tzok">Use this time zone</button>
+      <button type="button" id="tzcancel">Cancel</button>
+    </div>
+  </div>
+</div>
 <script>
 // Seven-segment display drawn with SVG, so the page needs no image files.
 //
@@ -164,18 +214,76 @@ function pad(n) {
   return (n < 10 ? "0" : "") + n;
 }
 
-// Short name of the local time zone, such as EDT, or GMT-4 when Windows
-// has no abbreviation for the zone
-function zoneName(date) {
+// Time zone of the bottom panel: an IANA name such as Asia/Tokyo, or ""
+// for the computer's own time zone. The Wall Clock program passes the
+// wall_clock.ini timezone= setting as ?tz= on the page address; in a
+// browser the last choice is kept in localStorage.
+var TZ_KEY = "wallclock.timezone";
+function validZone(zone) {
+  if (!zone) return true;
   try {
-    var parts = new Intl.DateTimeFormat("en-US", { timeZoneName: "short" })
-      .formatToParts(date);
-    for (var i = 0; i < parts.length; i++)
-      if (parts[i].type === "timeZoneName") return parts[i].value;
-  } catch (e) {}
-  return "LOCAL";
+    new Intl.DateTimeFormat("en-US", { timeZone: zone });
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
-
+function startZone() {
+  var m = /[?&]tz=([^&#]*)/.exec(location.search);
+  if (m) {
+    var z = decodeURIComponent(m[1].replace(/\+/g, " "));
+    if (validZone(z)) return z;
+  }
+  try {
+    var saved = localStorage.getItem(TZ_KEY);
+    if (saved !== null && validZone(saved)) return saved;
+  } catch (e) {}
+  return "";
+}
+var localZone = startZone();
+var partsFormat = null;
+function setZone(zone) {
+  localZone = zone;
+  partsFormat = null;
+  try {
+    var opts = { hourCycle: "h23", year: "numeric", month: "numeric",
+                 day: "numeric", hour: "numeric", minute: "numeric",
+                 second: "numeric", weekday: "short" };
+    if (zone) opts.timeZone = zone;
+    partsFormat = new Intl.DateTimeFormat("en-US", opts);
+  } catch (e) {}
+}
+setZone(localZone);
+var WEEKDAYS = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+// Hours, minutes, seconds, weekday, month and day of the month in the
+// bottom panel's time zone
+function zoneTime(now) {
+  if (!localZone || !partsFormat)
+    return { h: now.getHours(), m: now.getMinutes(), s: now.getSeconds(),
+             day: now.getDay(), month: now.getMonth() + 1,
+             date: now.getDate() };
+  var t = {};
+  partsFormat.formatToParts(now).forEach(function (p) { t[p.type] = p.value; });
+  return { h: parseInt(t.hour, 10) % 24, m: parseInt(t.minute, 10),
+           s: parseInt(t.second, 10), day: WEEKDAYS[t.weekday],
+           month: parseInt(t.month, 10), date: parseInt(t.day, 10) };
+}
+// Short name of a time zone, such as EDT. When the system has only a
+// GMT offset for the zone (GMT+9), a chosen zone shows its city instead.
+function zoneName(date, zone) {
+  var name = "LOCAL";
+  try {
+    var opts = { timeZoneName: "short" };
+    if (zone) opts.timeZone = zone;
+    var parts = new Intl.DateTimeFormat("en-US", opts).formatToParts(date);
+    for (var i = 0; i < parts.length; i++)
+      if (parts[i].type === "timeZoneName") name = parts[i].value;
+  } catch (e) {}
+  if (zone && /^(GMT|UTC)/.test(name))
+    name = zone.split("/").pop().replace(/_/g, " ").toUpperCase()
+      .substring(0, 11);
+  return name;
+}
 var utc = document.getElementById("utc");
 var local = document.getElementById("local");
 
@@ -198,13 +306,11 @@ function tick() {
          pad(now.getUTCSeconds()));
   setInfo(utc, null, now.getUTCDay(), now.getUTCMonth() + 1, now.getUTCDate());
 
-  var h = now.getHours();
-  var h12 = h % 12 || 12;
-  setLocal((h12 < 10 ? " " : "") + h12 + ":" + pad(now.getMinutes()) + ":" +
-           pad(now.getSeconds()));
-  ampm.textContent = h < 12 ? "AM" : "PM";
-  setInfo(local, zoneName(now), now.getDay(), now.getMonth() + 1,
-          now.getDate());
+  var z = zoneTime(now);
+  var h12 = z.h % 12 || 12;
+  setLocal((h12 < 10 ? " " : "") + h12 + ":" + pad(z.m) + ":" + pad(z.s));
+  ampm.textContent = z.h < 12 ? "AM" : "PM";
+  setInfo(local, zoneName(now, localZone), z.day, z.month, z.date);
 
   // Wake up just after the next whole second
   setTimeout(tick, 1000 - now.getMilliseconds() + 5);
@@ -229,9 +335,84 @@ function toggleFullScreen() {
     document.documentElement.requestFullscreen();
 }
 
+// Time zone picker for the bottom panel. The choice is sent to the Wall
+// Clock program, which saves it in wall_clock.ini (timezone=).
+var tzpick = document.getElementById("tzpick");
+var tzfilter = document.getElementById("tzfilter");
+var tzlist = document.getElementById("tzlist");
+var ALL_ZONES = null;
+function allZones() {
+  if (ALL_ZONES) return ALL_ZONES;
+  try {
+    ALL_ZONES = Intl.supportedValuesOf("timeZone").slice();
+  } catch (e) {
+    ALL_ZONES = ["UTC", "America/New_York", "America/Chicago",
+      "America/Denver", "America/Phoenix", "America/Los_Angeles",
+      "America/Anchorage", "Pacific/Honolulu", "America/Puerto_Rico",
+      "Pacific/Guam", "Europe/London", "Europe/Paris", "Europe/Berlin",
+      "Asia/Tokyo", "Asia/Shanghai", "Asia/Kolkata", "Australia/Sydney"];
+  }
+  if (ALL_ZONES.indexOf("UTC") < 0) ALL_ZONES.unshift("UTC");
+  return ALL_ZONES;
+}
+function fillZones() {
+  var f = tzfilter.value.toLowerCase().replace(/ /g, "_");
+  tzlist.innerHTML = "";
+  var opt = document.createElement("option");
+  opt.value = "";
+  opt.textContent = "Computer's time zone (" + zoneName(new Date(), "") + ")";
+  tzlist.appendChild(opt);
+  allZones().forEach(function (zone) {
+    if (f && zone.toLowerCase().indexOf(f) < 0) return;
+    var o = document.createElement("option");
+    o.value = zone;
+    o.textContent = zone.replace(/_/g, " ");
+    tzlist.appendChild(o);
+  });
+  tzlist.value = localZone;
+  if (tzlist.selectedIndex < 0) tzlist.selectedIndex = 0;
+}
+function openPicker() {
+  tzfilter.value = "";
+  fillZones();
+  tzpick.className = "open";
+  tzfilter.focus();
+}
+function closePicker() {
+  tzpick.className = "";
+}
+function pickZone() {
+  var zone = tzlist.value;
+  closePicker();
+  if (!validZone(zone)) return;
+  setZone(zone);
+  try { localStorage.setItem(TZ_KEY, zone); } catch (e) {}
+  sendToApp("timezone:" + zone);
+}
+tzfilter.addEventListener("input", fillZones);
+tzfilter.addEventListener("keydown", function (e) {
+  if (e.key === "ArrowDown") { e.preventDefault(); tzlist.focus(); }
+});
+tzlist.addEventListener("dblclick", function (e) {
+  e.stopPropagation();
+  pickZone();
+});
+document.getElementById("tzok").addEventListener("click", pickZone);
+document.getElementById("tzcancel").addEventListener("click", closePicker);
+tzpick.addEventListener("dblclick", function (e) { e.stopPropagation(); });
+local.querySelector(".zone").addEventListener("click", openPicker);
+
 document.addEventListener("dblclick", toggleFullScreen);
 document.addEventListener("keydown", function (e) {
-  if (e.key === "F11") {
+  if (tzpick.className === "open") {
+    if (e.key === "Escape") closePicker();
+    else if (e.key === "Enter") { e.preventDefault(); pickZone(); }
+    return;
+  }
+  if (e.key === "z" || e.key === "Z") {
+    e.preventDefault();
+    openPicker();
+  } else if (e.key === "F11") {
     e.preventDefault();
     toggleFullScreen();
   } else if (e.key === "Escape") {

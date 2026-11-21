@@ -64,7 +64,7 @@
 #error "Wall Clock is a Windows or Linux (wxGTK) program"
 #endif
 
-#define WALL_CLOCK_VERSION "2.3"
+#define WALL_CLOCK_VERSION "2.4"
 
 // Name the page uses to send messages to the program
 static const char *SCRIPT_HANDLER = "wallclock";
@@ -100,6 +100,8 @@ private:
   wxString m_url;
   bool m_fullscreen = false;
   bool m_fullscreen_set = false;
+  wxString m_timezone;
+  bool m_timezone_set = false;
 #if defined(__WXGTK__)
   GDBusConnection *m_bus = nullptr;
   const char *m_inhibit_service = nullptr;
@@ -123,6 +125,48 @@ static wxString DefaultClockURL()
   return wxFileName::FileNameToURL(page);
 }
 
+// A time zone name the clock page accepts: an IANA name such as
+// America/New_York or Etc/GMT+5, or empty for the computer's time zone
+static bool ValidTimeZone(const wxString &zone)
+{
+  if(zone.length() > 64) return false;
+  for(wxUniChar c : zone) {
+    if(!(wxIsalnum(c) || c == '/' || c == '_' || c == '-' || c == '+'))
+      return false;
+  }
+  return true;
+}
+
+// The settings file the program writes: ~/.config/wall_clock/wall_clock.ini
+// on Linux, wall_clock.ini in the program's folder on Windows (the setup
+// program lets users change it)
+static wxString UserSettingsFile()
+{
+#if defined(__WXGTK__)
+  wxString config_home;
+  if(!wxGetEnv("XDG_CONFIG_HOME", &config_home) || config_home.empty())
+    config_home = wxGetHomeDir() + "/.config";
+  return config_home + "/wall_clock/wall_clock.ini";
+#else
+  return wxFileName(ProgramDir(), "wall_clock.ini").GetFullPath();
+#endif
+}
+
+// Save the bottom panel's time zone as timezone= in the settings file
+static void SaveTimeZone(const wxString &zone)
+{
+  wxFileName file(UserSettingsFile());
+  if(!file.DirExists() && !file.Mkdir(0755, wxPATH_MKDIR_FULL)) {
+    wxLogWarning("Cannot save the time zone: cannot make %s", file.GetPath());
+    return;
+  }
+  wxFileConfig config(wxEmptyString, wxEmptyString, file.GetFullPath(),
+                      wxEmptyString, wxCONFIG_USE_LOCAL_FILE);
+  config.Write("/clock/timezone", zone);
+  if(!config.Flush())
+    wxLogWarning("Cannot save the time zone in %s", file.GetFullPath());
+}
+
 // Turn a URL or a file path into a URL. A relative path is relative to
 // the program's folder.
 static wxString ToURL(const wxString &location)
@@ -139,6 +183,7 @@ static wxString ToURL(const wxString &location)
 //   [clock]
 //   url=https://example.com/clock/
 //   fullscreen=1
+//   timezone=America/Chicago
 //
 // On Linux ~/.config/wall_clock/wall_clock.ini is read first, then the
 // one in the program's folder. The first setting found is used, and
@@ -167,6 +212,14 @@ void WallClockApp::ReadSettings()
       m_fullscreen = config.ReadBool("fullscreen", false);
       m_fullscreen_set = true;
     }
+    if(!m_timezone_set && config.HasEntry("timezone")) {
+      m_timezone = config.Read("timezone", wxEmptyString).Strip(wxString::both);
+      m_timezone_set = true;
+    }
+  }
+  if(!ValidTimeZone(m_timezone)) {
+    wxLogWarning("Ignoring the time zone \"%s\" in wall_clock.ini", m_timezone);
+    m_timezone.clear();
   }
 }
 
@@ -174,6 +227,8 @@ void WallClockApp::OnInitCmdLine(wxCmdLineParser &parser)
 {
   wxApp::OnInitCmdLine(parser);
   parser.AddSwitch("f", "fullscreen", "start in full screen mode");
+  parser.AddOption("z", "timezone",
+                   "time zone of the bottom panel, such as America/Chicago");
   parser.AddParam("URL of the clock page (default: html/index.html)",
                   wxCMD_LINE_VAL_STRING, wxCMD_LINE_PARAM_OPTIONAL);
 }
@@ -184,6 +239,7 @@ bool WallClockApp::OnCmdLineParsed(wxCmdLineParser &parser)
   m_fullscreen = parser.Found("f");
   m_fullscreen_set = m_fullscreen;
   if(parser.GetParamCount() > 0) m_url = parser.GetParam(0);
+  if(parser.Found("z", &m_timezone)) m_timezone_set = true;
   return true;
 }
 
@@ -211,7 +267,18 @@ bool WallClockApp::OnInit()
 
   if(!wxApp::OnInit()) return false;
   ReadSettings();
-  m_url = m_url.empty() ? DefaultClockURL() : ToURL(m_url);
+  if(m_url.empty()) {
+    // The built-in page reads the bottom panel's time zone from ?tz=
+    m_url = DefaultClockURL();
+    if(!m_timezone.empty()) {
+      wxString tz(m_timezone);
+      tz.Replace("+", "%2B");
+      m_url += "?tz=" + tz;
+    }
+  }
+  else {
+    m_url = ToURL(m_url);
+  }
 
   KeepScreenAwake();
 
@@ -366,6 +433,10 @@ void WallClockFrame::OnScriptMessage(wxWebViewEvent &evt)
   }
   else if(msg == "exitfullscreen") {
     if(IsFullScreen()) ShowFullScreen(false);
+  }
+  else if(msg.StartsWith("timezone:")) {
+    const wxString zone = msg.Mid(9);
+    if(ValidTimeZone(zone)) SaveTimeZone(zone);
   }
 }
 

@@ -11,8 +11,8 @@
 %global _buildhost localhost
 
 Name:           wall_clock
-Version:        2.3
-Release:        2%{?dist}
+Version:        2.4
+Release:        1%{?dist}
 Summary:        Full screen UTC and local time clock that keeps the screen awake
 License:        GPL-3.0-or-later
 URL:            https://datareel.com/info_wall_clock.php
@@ -89,7 +89,9 @@ cd ..
 %{_datadir}/applications/wall_clock.desktop
 
 %changelog
-* Sat Nov 21 2026 DataReel Software Development - 2.3-2
+* Sat Nov 21 2026 DataReel Software Development - 2.4-1
+- Bottom panel time zone: pick any time zone (click the zone name or
+  press Z), saved as timezone= in wall_clock.ini; --timezone option
 - Turn off the WebKitGTK DMA-BUF renderer when the NVIDIA driver is loaded
   (Wayland Error 71 and X11 GBM buffer errors)
 
