@@ -58,6 +58,8 @@
 
 #if defined(__WXGTK__)
 #include <gio/gio.h>
+#include <stdlib.h>
+#include <unistd.h>
 #elif !defined(__WXMSW__)
 #error "Wall Clock is a Windows or Linux (wxGTK) program"
 #endif
@@ -185,8 +187,24 @@ bool WallClockApp::OnCmdLineParsed(wxCmdLineParser &parser)
   return true;
 }
 
+#if defined(__WXGTK__)
+// WebKitGTK's DMA-BUF renderer fails with the NVIDIA driver: "Error 71
+// (Protocol error) dispatching to Wayland display" on Wayland and "Failed
+// to create GBM buffer" on X11. Turn that renderer off when the NVIDIA
+// driver is loaded, before the web view starts. A value already set in
+// the environment is kept.
+static void AvoidNvidiaDmabuf()
+{
+  if(access("/proc/driver/nvidia/version", F_OK) != 0) return;
+  setenv("WEBKIT_DISABLE_DMABUF_RENDERER", "1", 0);
+}
+#endif
+
 bool WallClockApp::OnInit()
 {
+#if defined(__WXGTK__)
+  AvoidNvidiaDmabuf();
+#endif
   // Also names the WebView2 data folder under %LOCALAPPDATA%
   SetAppName("WallClock");
   SetAppDisplayName("Wall Clock");

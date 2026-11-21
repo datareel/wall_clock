@@ -12,7 +12,7 @@
 
 Name:           wall_clock
 Version:        2.3
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Full screen UTC and local time clock that keeps the screen awake
 License:        GPL-3.0-or-later
 URL:            https://datareel.com/info_wall_clock.php
@@ -89,6 +89,10 @@ cd ..
 %{_datadir}/applications/wall_clock.desktop
 
 %changelog
+* Sat Nov 21 2026 DataReel Software Development - 2.3-2
+- Turn off the WebKitGTK DMA-BUF renderer when the NVIDIA driver is loaded
+  (Wayland Error 71 and X11 GBM buffer errors)
+
 * Wed Nov 18 2026 DataReel Software Development - 2.3-1
 - RHEL 8 build with a private static wxWidgets 3.2.4 and WebKitGTK 4.0
 
