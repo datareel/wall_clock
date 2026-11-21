@@ -22,7 +22,7 @@ Closing the program returns the computer to its normal power settings.
 | Esc | Leave full screen |
 | F5 | Reload the page |
 | Z, or click the zone name | Pick the bottom panel's time zone |
-| A, or click the alarm count | Set alarms and reminders |
+| A, or click "Alarms" (top right) | Set alarms and reminders |
 
 The top panel shows UTC. The bottom panel shows the computer's time zone,
 or any other time zone: press Z (or click the zone name under the bottom
@@ -30,7 +30,7 @@ clock), type part of a name such as `Chicago` or `Tokyo`, and pick it.
 The choice is saved as `timezone=` in `wall_clock.ini`, and
 `--timezone America/Chicago` on the command line overrides it.
 
-Alarms and reminders: press A, add a time and an optional label, and
+Alarms and reminders: press A (or click "Alarms" in the top right corner), add a time and an optional label, and
 light the day buttons for the days it repeats (no day lit rings once).
 Alarm times use the bottom panel's time zone. When an alarm goes off the
 screen flashes, the label shows in large letters, the clock beeps and

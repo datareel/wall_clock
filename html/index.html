@@ -123,6 +123,9 @@
     right: 1.5vw;
     font-size: 2.6vh;
     line-height: 1.2;
+    padding: 0.3em 0.6em;
+    border: 1px solid #330000;
+    z-index: 5;
     opacity: 0.8;
     cursor: pointer;
   }
@@ -586,8 +589,9 @@ function cleanAlarms(list) {
 function showNext() {
   var next = document.getElementById("next");
   var on = alarms.filter(function (a) { return a.on; });
-  next.textContent = on.length ? "\u23F0 " + on.length +
-    (on.length === 1 ? " alarm" : " alarms") : "";
+  // Always shown, so alarms can be set with the mouse alone
+  next.textContent = "\u23F0 " + (on.length ? on.length +
+    (on.length === 1 ? " alarm" : " alarms") : "Alarms");
 }
 // Called by the Wall Clock program with the saved list (a JSON string)
 window.wallclockAlarms = function (json) {
@@ -766,6 +770,8 @@ function checkAlarms(now) {
 }
 loadAlarms();
 
+// A click on the page also asks for the keyboard focus
+document.addEventListener("mousedown", function () { window.focus(); });
 document.addEventListener("dblclick", toggleFullScreen);
 document.addEventListener("keydown", function (e) {
   if (ringTimer) {

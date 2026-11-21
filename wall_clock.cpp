@@ -78,6 +78,8 @@ private:
   void ToggleFullScreen();
   void OnScriptMessage(wxWebViewEvent &evt);
   void OnLoadError(wxWebViewEvent &evt);
+  void OnLoaded(wxWebViewEvent &evt);
+  void OnActivate(wxActivateEvent &evt);
   void OnCharHook(wxKeyEvent &evt);
 
   wxWebView *m_browser;
@@ -464,6 +466,8 @@ WallClockFrame::WallClockFrame(const wxString &url, bool fullscreen)
   m_browser->Bind(wxEVT_WEBVIEW_SCRIPT_MESSAGE_RECEIVED,
                   &WallClockFrame::OnScriptMessage, this);
   m_browser->Bind(wxEVT_WEBVIEW_ERROR, &WallClockFrame::OnLoadError, this);
+  m_browser->Bind(wxEVT_WEBVIEW_LOADED, &WallClockFrame::OnLoaded, this);
+  Bind(wxEVT_ACTIVATE, &WallClockFrame::OnActivate, this);
   Bind(wxEVT_CHAR_HOOK, &WallClockFrame::OnCharHook, this);
 
   if(fullscreen) ShowFullScreen(true);
@@ -502,6 +506,23 @@ void WallClockFrame::OnScriptMessage(wxWebViewEvent &evt)
     const wxString zone = msg.Mid(9);
     if(ValidTimeZone(zone)) SaveTimeZone(zone);
   }
+}
+
+// Give the keyboard to the page, so its keys (A for alarms, Z for the
+// time zone) work without clicking first. On Wayland the web view does
+// not always take the focus when the window is activated.
+void WallClockFrame::OnLoaded(wxWebViewEvent &evt)
+{
+  m_browser->SetFocus();
+  evt.Skip();
+}
+
+void WallClockFrame::OnActivate(wxActivateEvent &evt)
+{
+  if(evt.GetActive()) {
+    CallAfter([this]() { if(m_browser) m_browser->SetFocus(); });
+  }
+  evt.Skip();
 }
 
 void WallClockFrame::OnLoadError(wxWebViewEvent &evt)
