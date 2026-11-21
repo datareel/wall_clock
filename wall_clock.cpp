@@ -104,6 +104,8 @@ private:
   bool m_fullscreen_set = false;
   wxString m_timezone;
   bool m_timezone_set = false;
+  bool m_alarm_button = false;
+  bool m_alarm_button_set = false;
 #if defined(__WXGTK__)
   GDBusConnection *m_bus = nullptr;
   const char *m_inhibit_service = nullptr;
@@ -235,6 +237,7 @@ static wxString ToURL(const wxString &location)
 //   url=https://example.com/clock/
 //   fullscreen=1
 //   timezone=America/Chicago
+//   alarmbutton=1
 //
 // On Linux ~/.config/wall_clock/wall_clock.ini is read first, then the
 // one in the program's folder. The first setting found is used, and
@@ -262,6 +265,10 @@ void WallClockApp::ReadSettings()
     if(!m_fullscreen_set && config.HasEntry("fullscreen")) {
       m_fullscreen = config.ReadBool("fullscreen", false);
       m_fullscreen_set = true;
+    }
+    if(!m_alarm_button_set && config.HasEntry("alarmbutton")) {
+      m_alarm_button = config.ReadBool("alarmbutton", false);
+      m_alarm_button_set = true;
     }
     if(!m_timezone_set && config.HasEntry("timezone")) {
       m_timezone = config.Read("timezone", wxEmptyString).Strip(wxString::both);
@@ -319,13 +326,17 @@ bool WallClockApp::OnInit()
   if(!wxApp::OnInit()) return false;
   ReadSettings();
   if(m_url.empty()) {
-    // The built-in page reads the bottom panel's time zone from ?tz=
+    // The built-in page reads the bottom panel's time zone from tz= and
+    // whether to show the Alarms button from ab=
     m_url = DefaultClockURL();
+    wxString query;
     if(!m_timezone.empty()) {
       wxString tz(m_timezone);
       tz.Replace("+", "%2B");
-      m_url += "?tz=" + tz;
+      query += "&tz=" + tz;
     }
+    if(m_alarm_button) query += "&ab=1";
+    if(!query.empty()) m_url += "?" + query.Mid(1);
   }
   else {
     m_url = ToURL(m_url);
@@ -548,6 +559,16 @@ void WallClockFrame::OnCharHook(wxKeyEvent &evt)
     case WXK_F5:
       m_browser->Reload();
       return;
+  }
+  // Ctrl+A opens the alarms and Ctrl+T the time zone picker. Handled here,
+  // not only in the page, so they work even when the web view does not
+  // have the keyboard (seen on Wayland). The key still goes on to the
+  // page, so Ctrl+A selects text in a text box as usual.
+  if(evt.GetModifiers() == wxMOD_CONTROL) {
+    if(evt.GetKeyCode() == 'A')
+      m_browser->RunScriptAsync("window.wallclockKey && window.wallclockKey('alarms')");
+    else if(evt.GetKeyCode() == 'T')
+      m_browser->RunScriptAsync("window.wallclockKey && window.wallclockKey('timezone')");
   }
   evt.Skip();
 }

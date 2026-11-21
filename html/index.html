@@ -589,7 +589,8 @@ function cleanAlarms(list) {
 function showNext() {
   var next = document.getElementById("next");
   var on = alarms.filter(function (a) { return a.on; });
-  // Always shown, so alarms can be set with the mouse alone
+  // Shown only with alarmbutton=1 in wall_clock.ini (?ab=1)
+  next.style.display = /[?&]ab=1/.test(location.search) ? "" : "none";
   next.textContent = "\u23F0 " + (on.length ? on.length +
     (on.length === 1 ? " alarm" : " alarms") : "Alarms");
 }
@@ -773,6 +774,13 @@ loadAlarms();
 // A click on the page also asks for the keyboard focus
 document.addEventListener("mousedown", function () { window.focus(); });
 document.addEventListener("dblclick", toggleFullScreen);
+// Ctrl+A and Ctrl+T, sent by the Wall Clock program
+window.wallclockKey = function (name) {
+  if (ringTimer || alarmedit.className === "open" ||
+      tzpick.className === "open") return;
+  if (name === "alarms") openAlarms();
+  else if (name === "timezone") openPicker();
+};
 document.addEventListener("keydown", function (e) {
   if (ringTimer) {
     e.preventDefault();
@@ -789,6 +797,7 @@ document.addEventListener("keydown", function (e) {
     else if (e.key === "Enter") { e.preventDefault(); pickZone(); }
     return;
   }
+  if (e.ctrlKey || e.altKey || e.metaKey) return;
   if (e.key === "z" || e.key === "Z") {
     e.preventDefault();
     openPicker();
