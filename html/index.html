@@ -797,6 +797,13 @@ document.addEventListener("keydown", function (e) {
     else if (e.key === "Enter") { e.preventDefault(); pickZone(); }
     return;
   }
+  if (e.ctrlKey && !e.altKey && !e.metaKey &&
+      (e.key === "a" || e.key === "A" || e.key === "t" || e.key === "T")) {
+    // Ctrl+A alarms, Ctrl+T time zone (the program also sends these)
+    e.preventDefault();
+    window.wallclockKey(e.key.toLowerCase() === "a" ? "alarms" : "timezone");
+    return;
+  }
   if (e.ctrlKey || e.altKey || e.metaKey) return;
   if (e.key === "z" || e.key === "Z") {
     e.preventDefault();
