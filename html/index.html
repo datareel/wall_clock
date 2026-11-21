@@ -95,120 +95,26 @@
     font-size: 2.5vh;
     user-select: text;
   }
-  #tzpick input, #tzpick select, #tzpick button {
+  #tzpick input, #tzpick button {
     font: inherit;
     color: var(--lit);
     background: #110000;
     border: 1px solid var(--lit);
     padding: 0.4em;
   }
-  #tzpick select {
+  #tzlist {
     flex: 1;
+    overflow-y: auto;
+    border: 1px solid var(--lit);
+    background: #110000;
   }
-  #tzpick option:checked {
+  #tzlist div {
+    padding: 0.15em 0.4em;
+    cursor: pointer;
+  }
+  #tzlist div.sel {
     background: var(--lit);
     color: #000;
-  }
-  /* Alarms: the list (press A) and the alarm screen */
-  #next {
-    position: fixed;
-    top: 1.5vh;
-    right: 1.5vw;
-    font-size: 2.6vh;
-    line-height: 1.2;
-    opacity: 0.8;
-    cursor: pointer;
-  }
-  #alarmedit, #ring {
-    display: none;
-    position: fixed;
-    inset: 0;
-    z-index: 10;
-    justify-content: center;
-    align-items: center;
-  }
-  #alarmedit {
-    background: rgba(0, 0, 0, 0.9);
-  }
-  #alarmedit.open, #ring.open {
-    display: flex;
-  }
-  #alarmedit .box {
-    width: min(94vw, 52em);
-    max-height: 88vh;
-    overflow-y: auto;
-    font-size: 2.4vh;
-    user-select: text;
-  }
-  #alarmedit h2 {
-    font-size: 3.2vh;
-    margin: 0 0 1vh 0;
-  }
-  #alarmedit .row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.6em;
-    padding: 0.5em 0;
-    border-bottom: 1px solid #330000;
-  }
-  #alarmedit input, #alarmedit button, #alarmedit label.day {
-    font: inherit;
-    color: var(--lit);
-    background: #110000;
-    border: 1px solid var(--lit);
-    padding: 0.25em 0.4em;
-  }
-  #alarmedit input[type=text] {
-    flex: 1;
-    min-width: 8em;
-  }
-  #alarmedit label.day {
-    cursor: pointer;
-    padding: 0.25em 0.35em;
-    opacity: 0.45;
-  }
-  #alarmedit label.day.on {
-    opacity: 1;
-    background: #440000;
-  }
-  #alarmedit label.day input {
-    display: none;
-  }
-  #alarmedit .note {
-    opacity: 0.75;
-    margin: 1vh 0;
-  }
-  #ring {
-    flex-direction: column;
-    background: #000;
-    text-align: center;
-  }
-  #ring.flash {
-    background: #550000;
-  }
-  #ring .rtime {
-    font-size: 16vh;
-    font-weight: bold;
-  }
-  #ring .rlabel {
-    font-size: 9vh;
-    font-weight: bold;
-    max-width: 94vw;
-    overflow-wrap: anywhere;
-  }
-  #ring .rhelp {
-    font-size: 3vh;
-    margin-top: 3vh;
-  }
-  #ring button {
-    font: inherit;
-    font-size: 3.5vh;
-    color: var(--lit);
-    background: #110000;
-    border: 2px solid var(--lit);
-    padding: 0.4em 1em;
-    margin: 0 0.5em;
   }
   #tzpick .buttons {
     display: flex;
@@ -259,7 +165,7 @@
 <div id="tzpick">
   <div class="box">
     <input type="text" id="tzfilter" placeholder="Type to filter time zones">
-    <select id="tzlist" size="12"></select>
+    <div id="tzlist"></div>
     <div class="buttons">
       <button type="button" id="tzok">Use this time zone</button>
       <button type="button" id="tzcancel">Cancel</button>
@@ -485,24 +391,37 @@ function allZones() {
   if (ALL_ZONES.indexOf("UTC") < 0) ALL_ZONES.unshift("UTC");
   return ALL_ZONES;
 }
+var tzRows = [], tzSel = 0;
+function selectRow(i) {
+  if (!tzRows.length) return;
+  tzSel = Math.max(0, Math.min(i, tzRows.length - 1));
+  tzRows.forEach(function (r, j) { r.className = j === tzSel ? "sel" : ""; });
+  tzRows[tzSel].scrollIntoView({ block: "nearest" });
+}
 function fillZones() {
   var f = tzfilter.value.toLowerCase().replace(/ /g, "_");
   tzlist.innerHTML = "";
-  var opt = document.createElement("option");
-  opt.value = "";
-  opt.textContent = "Computer's time zone (" + zoneName(new Date(), "") + ")";
-  tzlist.appendChild(opt);
-  allZones().forEach(function (zone) {
-    if (f && zone.toLowerCase().indexOf(f) < 0) return;
-    var o = document.createElement("option");
-    o.value = zone;
-    o.textContent = zone.replace(/_/g, " ");
-    tzlist.appendChild(o);
+  tzRows = [];
+  var zones = [""].concat(allZones().filter(function (zone) {
+    return !f || zone.toLowerCase().indexOf(f) >= 0;
+  }));
+  zones.forEach(function (zone) {
+    var r = document.createElement("div");
+    r.dataset.zone = zone;
+    r.textContent = zone ? zone.replace(/_/g, " ") :
+      "Computer's time zone (" + zoneName(new Date(), "") + ")";
+    r.addEventListener("click", function () { selectRow(tzRows.indexOf(r)); });
+    r.addEventListener("dblclick", function (e) {
+      e.stopPropagation();
+      selectRow(tzRows.indexOf(r));
+      pickZone();
+    });
+    tzlist.appendChild(r);
+    tzRows.push(r);
   });
-  tzlist.value = localZone;
   // While filtering, select the first matching zone, not "Computer's"
-  if (tzlist.selectedIndex < 0 || (f && tzlist.selectedIndex === 0))
-    tzlist.selectedIndex = tzlist.options.length > 1 && f ? 1 : 0;
+  var cur = zones.indexOf(localZone);
+  selectRow(f ? (zones.length > 1 ? 1 : 0) : Math.max(cur, 0));
 }
 function openPicker() {
   tzfilter.value = "";
@@ -514,7 +433,7 @@ function closePicker() {
   tzpick.className = "";
 }
 function pickZone() {
-  var zone = tzlist.value;
+  var zone = tzRows.length ? tzRows[tzSel].dataset.zone : localZone;
   closePicker();
   if (!validZone(zone)) return;
   setZone(zone);
@@ -523,11 +442,10 @@ function pickZone() {
 }
 tzfilter.addEventListener("input", fillZones);
 tzfilter.addEventListener("keydown", function (e) {
-  if (e.key === "ArrowDown") { e.preventDefault(); tzlist.focus(); }
-});
-tzlist.addEventListener("dblclick", function (e) {
-  e.stopPropagation();
-  pickZone();
+  if (e.key === "ArrowDown") { e.preventDefault(); selectRow(tzSel + 1); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); selectRow(tzSel - 1); }
+  else if (e.key === "PageDown") { e.preventDefault(); selectRow(tzSel + 10); }
+  else if (e.key === "PageUp") { e.preventDefault(); selectRow(tzSel - 10); }
 });
 document.getElementById("tzok").addEventListener("click", pickZone);
 document.getElementById("tzcancel").addEventListener("click", closePicker);
