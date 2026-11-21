@@ -167,6 +167,55 @@ static void SaveTimeZone(const wxString &zone)
     wxLogWarning("Cannot save the time zone in %s", file.GetFullPath());
 }
 
+// The alarm list (JSON from the clock page), [alarms] list= in the settings
+// files. The user's file is read first on Linux, as for the [clock] settings.
+static wxString ReadAlarms()
+{
+  wxArrayString files;
+  files.Add(UserSettingsFile());
+#if defined(__WXGTK__)
+  files.Add(wxFileName(ProgramDir(), "wall_clock.ini").GetFullPath());
+#endif
+  for(const wxString &file : files) {
+    if(!wxFileName::FileExists(file)) continue;
+    wxFileConfig config(wxEmptyString, wxEmptyString, file, wxEmptyString,
+                        wxCONFIG_USE_LOCAL_FILE);
+    if(config.HasEntry("/alarms/list"))
+      return config.Read("/alarms/list", "[]");
+  }
+  return "[]";
+}
+
+static void SaveAlarms(const wxString &json)
+{
+  wxFileName file(UserSettingsFile());
+  if(!file.DirExists() && !file.Mkdir(0755, wxPATH_MKDIR_FULL)) {
+    wxLogWarning("Cannot save the alarms: cannot make %s", file.GetPath());
+    return;
+  }
+  wxFileConfig config(wxEmptyString, wxEmptyString, file.GetFullPath(),
+                      wxEmptyString, wxCONFIG_USE_LOCAL_FILE);
+  config.Write("/alarms/list", json);
+  if(!config.Flush())
+    wxLogWarning("Cannot save the alarms in %s", file.GetFullPath());
+}
+
+// Quote text as a JavaScript string literal
+static wxString JSString(const wxString &text)
+{
+  wxString out = "'";
+  for(wxUniChar c : text) {
+    if(c == '\\' || c == '\'') out << '\\' << c;
+    else if(c == '\n') out << "\\n";
+    else if(c == '\r') out << "\\r";
+    else if(c == '<') out << "\\x3c";
+    else if(c.GetValue() == 0x2028 || c.GetValue() == 0x2029)
+      out << wxString::Format("\\u%04x", (unsigned)c.GetValue());
+    else out << c;
+  }
+  return out + "'";
+}
+
 // Turn a URL or a file path into a URL. A relative path is relative to
 // the program's folder.
 static wxString ToURL(const wxString &location)
@@ -433,6 +482,21 @@ void WallClockFrame::OnScriptMessage(wxWebViewEvent &evt)
   }
   else if(msg == "exitfullscreen") {
     if(IsFullScreen()) ShowFullScreen(false);
+  }
+  else if(msg == "getalarms") {
+    m_browser->RunScriptAsync("window.wallclockAlarms && window.wallclockAlarms(" +
+                              JSString(ReadAlarms()) + ")");
+  }
+  else if(msg.StartsWith("alarms:")) {
+    const wxString json = msg.Mid(7);
+    if(json.length() < 32768 && json.StartsWith("[")) SaveAlarms(json);
+  }
+  else if(msg == "alarm") {
+    // An alarm is ringing: beep and bring the clock to the front
+    wxBell();
+    if(IsIconized()) Iconize(false);
+    Raise();
+    RequestUserAttention(wxUSER_ATTENTION_ERROR);
   }
   else if(msg.StartsWith("timezone:")) {
     const wxString zone = msg.Mid(9);

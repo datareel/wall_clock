@@ -13,14 +13,29 @@ Closing the program returns the computer to its normal power settings.
 
 ## Using it
 
-    wall_clock.exe [--fullscreen] [URL]      (Windows)
-    wall_clock [--fullscreen] [URL]          (Linux)
+    wall_clock.exe [--fullscreen] [--timezone ZONE] [URL]      (Windows)
+    wall_clock [--fullscreen] [--timezone ZONE] [URL]          (Linux)
 
 | Key | Action |
 | --- | --- |
 | F11 or double click | Toggle full screen |
 | Esc | Leave full screen |
 | F5 | Reload the page |
+| Z, or click the zone name | Pick the bottom panel's time zone |
+| A, or click the alarm count | Set alarms and reminders |
+
+The top panel shows UTC. The bottom panel shows the computer's time zone,
+or any other time zone: press Z (or click the zone name under the bottom
+clock), type part of a name such as `Chicago` or `Tokyo`, and pick it.
+The choice is saved as `timezone=` in `wall_clock.ini`, and
+`--timezone America/Chicago` on the command line overrides it.
+
+Alarms and reminders: press A, add a time and an optional label, and
+light the day buttons for the days it repeats (no day lit rings once).
+Alarm times use the bottom panel's time zone. When an alarm goes off the
+screen flashes, the label shows in large letters, the clock beeps and
+comes to the front until you press Stop (or any key) or Snooze (S, five
+minutes). The list is saved in `wall_clock.ini` under `[alarms]`.
 
 The installer adds a "Wall Clock (full screen)" Start menu shortcut that
 starts with `--fullscreen`. Put it in the Startup folder to start the

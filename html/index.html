@@ -105,6 +105,106 @@
   #tzpick select {
     flex: 1;
   }
+  /* Alarms: the list (press A) and the alarm screen */
+  #next {
+    position: fixed;
+    top: 0.6vh;
+    right: 1vw;
+    font-size: 2.6vh;
+    opacity: 0.8;
+    cursor: pointer;
+  }
+  #alarmedit, #ring {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    justify-content: center;
+    align-items: center;
+  }
+  #alarmedit {
+    background: rgba(0, 0, 0, 0.9);
+  }
+  #alarmedit.open, #ring.open {
+    display: flex;
+  }
+  #alarmedit .box {
+    width: min(94vw, 52em);
+    max-height: 88vh;
+    overflow-y: auto;
+    font-size: 2.4vh;
+    user-select: text;
+  }
+  #alarmedit h2 {
+    font-size: 3.2vh;
+    margin: 0 0 1vh 0;
+  }
+  #alarmedit .row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6em;
+    padding: 0.5em 0;
+    border-bottom: 1px solid #330000;
+  }
+  #alarmedit input, #alarmedit button, #alarmedit label.day {
+    font: inherit;
+    color: var(--lit);
+    background: #110000;
+    border: 1px solid var(--lit);
+    padding: 0.25em 0.4em;
+  }
+  #alarmedit input[type=text] {
+    flex: 1;
+    min-width: 8em;
+  }
+  #alarmedit label.day {
+    cursor: pointer;
+    padding: 0.25em 0.35em;
+    opacity: 0.45;
+  }
+  #alarmedit label.day.on {
+    opacity: 1;
+    background: #440000;
+  }
+  #alarmedit label.day input {
+    display: none;
+  }
+  #alarmedit .note {
+    opacity: 0.75;
+    margin: 1vh 0;
+  }
+  #ring {
+    flex-direction: column;
+    background: #000;
+    text-align: center;
+  }
+  #ring.flash {
+    background: #550000;
+  }
+  #ring .rtime {
+    font-size: 16vh;
+    font-weight: bold;
+  }
+  #ring .rlabel {
+    font-size: 9vh;
+    font-weight: bold;
+    max-width: 94vw;
+    overflow-wrap: anywhere;
+  }
+  #ring .rhelp {
+    font-size: 3vh;
+    margin-top: 3vh;
+  }
+  #ring button {
+    font: inherit;
+    font-size: 3.5vh;
+    color: var(--lit);
+    background: #110000;
+    border: 2px solid var(--lit);
+    padding: 0.4em 1em;
+    margin: 0 0.5em;
+  }
   #tzpick .buttons {
     display: flex;
     gap: 1em;
@@ -127,6 +227,30 @@
     </div>
   </section>
 </main>
+<div id="next" title="Alarms (A)"></div>
+<div id="alarmedit">
+  <div class="box">
+    <h2>Alarms</h2>
+    <div class="note">Times use the bottom panel's time zone. A day button
+      lit means the alarm repeats on that day; no day lit means it rings
+      once.</div>
+    <div id="alarmrows"></div>
+    <div class="row">
+      <button type="button" id="alarmadd">Add an alarm</button>
+      <span style="flex:1"></span>
+      <button type="button" id="alarmsave">Save</button>
+      <button type="button" id="alarmcancel">Cancel</button>
+    </div>
+  </div>
+</div>
+<div id="ring">
+  <div class="rtime"></div>
+  <div class="rlabel"></div>
+  <div class="rhelp">
+    <button type="button" id="ringstop">Stop</button>
+    <button type="button" id="ringsnooze">Snooze 5 minutes</button>
+  </div>
+</div>
 <div id="tzpick">
   <div class="box">
     <input type="text" id="tzfilter" placeholder="Type to filter time zones">
@@ -311,6 +435,7 @@ function tick() {
   setLocal((h12 < 10 ? " " : "") + h12 + ":" + pad(z.m) + ":" + pad(z.s));
   ampm.textContent = z.h < 12 ? "AM" : "PM";
   setInfo(local, zoneName(now, localZone), z.day, z.month, z.date);
+  if (typeof checkAlarms === "function") checkAlarms(now);
 
   // Wake up just after the next whole second
   setTimeout(tick, 1000 - now.getMilliseconds() + 5);
@@ -402,8 +527,221 @@ document.getElementById("tzcancel").addEventListener("click", closePicker);
 tzpick.addEventListener("dblclick", function (e) { e.stopPropagation(); });
 local.querySelector(".zone").addEventListener("click", openPicker);
 
+// Alarms and reminders. Each alarm is { time: "HH:MM", label: "...",
+// days: [0-6] (Sunday is 0; empty rings once), on: true }. Times use the
+// bottom panel's time zone. The Wall Clock program keeps the list in
+// wall_clock.ini; in a browser it is kept in localStorage.
+var ALARM_KEY = "wallclock.alarms";
+var DAY_LETTERS = ["S", "M", "T", "W", "T", "F", "S"];
+var alarms = [];
+var snoozes = [];      // { at: Date ms, alarm: {...} }
+var firedKeys = {};    // alarm index + date + time, so an alarm rings once a minute
+function cleanAlarms(list) {
+  var out = [];
+  if (!Array.isArray(list)) return out;
+  list.forEach(function (a) {
+    if (!a || !/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(a.time)) return;
+    var days = Array.isArray(a.days) ? a.days.filter(function (d) {
+      return d === (d | 0) && d >= 0 && d <= 6;
+    }) : [];
+    out.push({ time: a.time, label: String(a.label || "").substring(0, 80),
+               days: days, on: a.on !== false });
+  });
+  return out.slice(0, 50);
+}
+function showNext() {
+  var next = document.getElementById("next");
+  var on = alarms.filter(function (a) { return a.on; });
+  next.textContent = on.length ? "\u23F0 " + on.length +
+    (on.length === 1 ? " alarm" : " alarms") : "";
+}
+// Called by the Wall Clock program with the saved list (a JSON string)
+window.wallclockAlarms = function (json) {
+  try { alarms = cleanAlarms(JSON.parse(json)); } catch (e) { alarms = []; }
+  showNext();
+};
+function loadAlarms() {
+  if (sendToApp("getalarms")) return;
+  try {
+    var saved = localStorage.getItem(ALARM_KEY);
+    if (saved) alarms = cleanAlarms(JSON.parse(saved));
+  } catch (e) {}
+  showNext();
+}
+function saveAlarms() {
+  var json = JSON.stringify(alarms);
+  try { localStorage.setItem(ALARM_KEY, json); } catch (e) {}
+  sendToApp("alarms:" + json);
+  showNext();
+}
+
+// The alarm list editor
+var alarmedit = document.getElementById("alarmedit");
+var alarmrows = document.getElementById("alarmrows");
+function addRow(a) {
+  var row = document.createElement("div");
+  row.className = "row";
+  var on = document.createElement("input");
+  on.type = "checkbox";
+  on.checked = a.on;
+  on.title = "On";
+  var time = document.createElement("input");
+  time.type = "time";
+  time.value = a.time;
+  var label = document.createElement("input");
+  label.type = "text";
+  label.placeholder = "Label (optional)";
+  label.maxLength = 80;
+  label.value = a.label;
+  row.appendChild(on);
+  row.appendChild(time);
+  row.appendChild(label);
+  for (var d = 0; d < 7; d++) {
+    var l = document.createElement("label");
+    l.className = "day" + (a.days.indexOf(d) >= 0 ? " on" : "");
+    l.textContent = DAY_LETTERS[d];
+    l.dataset.day = d;
+    l.addEventListener("click", function (e) {
+      e.preventDefault();
+      this.classList.toggle("on");
+    });
+    row.appendChild(l);
+  }
+  var del = document.createElement("button");
+  del.type = "button";
+  del.textContent = "Delete";
+  del.addEventListener("click", function () { row.remove(); });
+  row.appendChild(del);
+  alarmrows.appendChild(row);
+  return time;
+}
+function openAlarms() {
+  alarmrows.innerHTML = "";
+  alarms.forEach(addRow);
+  if (!alarms.length) addRow({ time: "", label: "", days: [], on: true });
+  alarmedit.className = "open";
+}
+function closeAlarms() {
+  alarmedit.className = "";
+}
+function saveAlarmEdits() {
+  var list = [];
+  alarmrows.querySelectorAll(".row").forEach(function (row) {
+    var inputs = row.querySelectorAll("input");
+    var t = inputs[1].value.substring(0, 5);
+    if (!t) return;
+    var days = [];
+    row.querySelectorAll("label.day.on").forEach(function (l) {
+      days.push(parseInt(l.dataset.day, 10));
+    });
+    list.push({ time: t, label: inputs[2].value, days: days,
+                on: inputs[0].checked });
+  });
+  alarms = cleanAlarms(list);
+  saveAlarms();
+  closeAlarms();
+}
+document.getElementById("alarmadd").addEventListener("click", function () {
+  addRow({ time: "", label: "", days: [], on: true }).focus();
+});
+document.getElementById("alarmsave").addEventListener("click", saveAlarmEdits);
+document.getElementById("alarmcancel").addEventListener("click", closeAlarms);
+document.getElementById("next").addEventListener("click", openAlarms);
+alarmedit.addEventListener("dblclick", function (e) { e.stopPropagation(); });
+
+// Ringing: the screen flashes, the label shows large, and a tone plays
+// until Stop or Snooze. The program also beeps and raises its window.
+var ring = document.getElementById("ring");
+var ringTimer = null, ringAlarm = null, audio = null;
+function beep() {
+  try {
+    if (!audio) {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      audio = new AC();
+    }
+    if (audio.state === "suspended") audio.resume();
+    [0, 0.25, 0.5].forEach(function (t) {
+      var o = audio.createOscillator(), g = audio.createGain();
+      o.frequency.value = 880;
+      g.gain.value = 0.25;
+      o.connect(g);
+      g.connect(audio.destination);
+      o.start(audio.currentTime + t);
+      o.stop(audio.currentTime + t + 0.15);
+    });
+  } catch (e) {}
+}
+function startRing(a) {
+  ringAlarm = a;
+  closeAlarms();
+  closePicker();
+  ring.querySelector(".rtime").textContent = a.time;
+  ring.querySelector(".rlabel").textContent = a.label || "Alarm";
+  ring.className = "open";
+  sendToApp("alarm");
+  var n = 0;
+  clearInterval(ringTimer);
+  ringTimer = setInterval(function () {
+    ring.className = (n++ % 2) ? "open" : "open flash";
+    if (n % 2) beep();
+    if (n % 20 === 1) sendToApp("alarm");
+    if (n > 1200) stopRing();      // ten minutes
+  }, 500);
+  beep();
+}
+function stopRing() {
+  clearInterval(ringTimer);
+  ringTimer = null;
+  ringAlarm = null;
+  ring.className = "";
+}
+function snoozeRing() {
+  if (ringAlarm)
+    snoozes.push({ at: Date.now() + 5 * 60 * 1000, alarm: ringAlarm });
+  stopRing();
+}
+document.getElementById("ringstop").addEventListener("click", stopRing);
+document.getElementById("ringsnooze").addEventListener("click", snoozeRing);
+ring.addEventListener("dblclick", function (e) { e.stopPropagation(); });
+// Checked once a second from tick()
+function checkAlarms(now) {
+  if (!alarms || !snoozes) return;   // the first tick runs before the list loads
+  var z = zoneTime(now);
+  var hm = pad(z.h) + ":" + pad(z.m);
+  var today = z.month + "-" + z.date;
+  var changed = false;
+  alarms.forEach(function (a, i) {
+    if (!a.on || a.time !== hm) return;
+    if (a.days.length && a.days.indexOf(z.day) < 0) return;
+    var key = i + "|" + today + "|" + hm;
+    if (firedKeys[key]) return;
+    firedKeys[key] = true;
+    if (!a.days.length) { a.on = false; changed = true; }
+    if (!ringTimer) startRing(a);
+  });
+  for (var i = snoozes.length - 1; i >= 0; i--) {
+    if (snoozes[i].at <= now.getTime()) {
+      var a = snoozes.splice(i, 1)[0].alarm;
+      if (!ringTimer) startRing(a);
+    }
+  }
+  if (changed) saveAlarms();
+}
+loadAlarms();
+
 document.addEventListener("dblclick", toggleFullScreen);
 document.addEventListener("keydown", function (e) {
+  if (ringTimer) {
+    e.preventDefault();
+    if (e.key === "s" || e.key === "S") snoozeRing();
+    else stopRing();
+    return;
+  }
+  if (alarmedit.className === "open") {
+    if (e.key === "Escape") closeAlarms();
+    return;
+  }
   if (tzpick.className === "open") {
     if (e.key === "Escape") closePicker();
     else if (e.key === "Enter") { e.preventDefault(); pickZone(); }
@@ -412,6 +750,9 @@ document.addEventListener("keydown", function (e) {
   if (e.key === "z" || e.key === "Z") {
     e.preventDefault();
     openPicker();
+  } else if (e.key === "a" || e.key === "A") {
+    e.preventDefault();
+    openAlarms();
   } else if (e.key === "F11") {
     e.preventDefault();
     toggleFullScreen();
