@@ -105,6 +105,10 @@
   #tzpick select {
     flex: 1;
   }
+  #tzpick option:checked {
+    background: var(--lit);
+    color: #000;
+  }
   /* Alarms: the list (press A) and the alarm screen */
   #next {
     position: fixed;
@@ -496,7 +500,9 @@ function fillZones() {
     tzlist.appendChild(o);
   });
   tzlist.value = localZone;
-  if (tzlist.selectedIndex < 0) tzlist.selectedIndex = 0;
+  // While filtering, select the first matching zone, not "Computer's"
+  if (tzlist.selectedIndex < 0 || (f && tzlist.selectedIndex === 0))
+    tzlist.selectedIndex = tzlist.options.length > 1 && f ? 1 : 0;
 }
 function openPicker() {
   tzfilter.value = "";
