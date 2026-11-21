@@ -116,6 +116,107 @@
     background: var(--lit);
     color: #000;
   }
+  /* Alarms: the list (press A) and the alarm screen */
+  #next {
+    position: fixed;
+    top: 1.5vh;
+    right: 1.5vw;
+    font-size: 2.6vh;
+    line-height: 1.2;
+    opacity: 0.8;
+    cursor: pointer;
+  }
+  #alarmedit, #ring {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    justify-content: center;
+    align-items: center;
+  }
+  #alarmedit {
+    background: rgba(0, 0, 0, 0.9);
+  }
+  #alarmedit.open, #ring.open {
+    display: flex;
+  }
+  #alarmedit .box {
+    width: min(94vw, 52em);
+    max-height: 88vh;
+    overflow-y: auto;
+    font-size: 2.4vh;
+    user-select: text;
+  }
+  #alarmedit h2 {
+    font-size: 3.2vh;
+    margin: 0 0 1vh 0;
+  }
+  #alarmedit .row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6em;
+    padding: 0.5em 0;
+    border-bottom: 1px solid #330000;
+  }
+  #alarmedit input, #alarmedit button, #alarmedit label.day {
+    font: inherit;
+    color: var(--lit);
+    background: #110000;
+    border: 1px solid var(--lit);
+    padding: 0.25em 0.4em;
+  }
+  #alarmedit input[type=text] {
+    flex: 1;
+    min-width: 8em;
+  }
+  #alarmedit label.day {
+    cursor: pointer;
+    padding: 0.25em 0.35em;
+    opacity: 0.45;
+  }
+  #alarmedit label.day.on {
+    opacity: 1;
+    background: #440000;
+  }
+  #alarmedit label.day input {
+    display: none;
+  }
+  #alarmedit .note {
+    opacity: 0.75;
+    margin: 1vh 0;
+  }
+  #ring {
+    flex-direction: column;
+    background: #000;
+    text-align: center;
+  }
+  #ring.flash {
+    background: #550000;
+  }
+  #ring .rtime {
+    font-size: 16vh;
+    font-weight: bold;
+  }
+  #ring .rlabel {
+    font-size: 9vh;
+    font-weight: bold;
+    max-width: 94vw;
+    overflow-wrap: anywhere;
+  }
+  #ring .rhelp {
+    font-size: 3vh;
+    margin-top: 3vh;
+  }
+  #ring button {
+    font: inherit;
+    font-size: 3.5vh;
+    color: var(--lit);
+    background: #110000;
+    border: 2px solid var(--lit);
+    padding: 0.4em 1em;
+    margin: 0 0.5em;
+  }
   #tzpick .buttons {
     display: flex;
     gap: 1em;
@@ -429,8 +530,16 @@ function openPicker() {
   tzpick.className = "open";
   tzfilter.focus();
 }
+// Move the keyboard focus off a closed dialog, so keys reach the clock
+function dropFocus() {
+  if (document.activeElement && document.activeElement.blur)
+    document.activeElement.blur();
+  document.body.tabIndex = -1;
+  document.body.focus();
+}
 function closePicker() {
   tzpick.className = "";
+  dropFocus();
 }
 function pickZone() {
   var zone = tzRows.length ? tzRows[tzSel].dataset.zone : localZone;
@@ -548,6 +657,7 @@ function openAlarms() {
 }
 function closeAlarms() {
   alarmedit.className = "";
+  dropFocus();
 }
 function saveAlarmEdits() {
   var list = [];
@@ -613,7 +723,8 @@ function startRing(a) {
     if (n % 20 === 1) sendToApp("alarm");
     if (n > 1200) stopRing();      // ten minutes
   }, 500);
-  beep();
+  // Show the alarm first; starting the sound can take a moment
+  setTimeout(beep, 50);
 }
 function stopRing() {
   clearInterval(ringTimer);
